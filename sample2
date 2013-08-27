@@ -1,8 +1,10 @@
 /*
 * Sample Plugin 2
-* version 0.0.1
+* version 0.0.2
 */
 
-var ebScriptFileName = "PL_customscript_sample2.js";
+var ebScriptFileName = "New test PL_customscript_sample2.js";
+
+
 
 
