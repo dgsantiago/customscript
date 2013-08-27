@@ -1,6 +1,6 @@
 /*
 * Sample Plugin
-* version 0.0.3
+* version 0.0.4
 */
 
 var ebScriptFileName = "PL_customscript_sample.js";
@@ -8,3 +8,10 @@ var ebScriptFileName = "PL_customscript_sample.js";
 var sth = '';
 
 var thirdEdit = "the edit is from Santiago Chen"
+
+/*
+  我更新了Sample,版本号变为0.0.4
+  Allen
+  8/27/2013
+*/  
+var myEdit="Allen"
