@@ -1,6 +1,6 @@
 /*
 * Sample Plugin 2
-* version 0.0.4
+* version 0.0.5
 */
 
 var ebScriptFileName = "New test PL_customscript_sample2.js";
@@ -8,5 +8,6 @@ var ebScriptFileName = "New test PL_customscript_sample2.js";
 
 var thirdEdit = "the edit is from Santiago Chen"
 
+//edited by jerry
 var say = 'changed by jerry';
 
