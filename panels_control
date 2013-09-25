@@ -1,0 +1,633 @@
+/*
+* pl_customscript_position_tc.js 
+* 该customscript可被用于多个广告panel的定位及push down广告和浮动panel的设置
+* 
+* 控制参数加在JS链接后，可参看以下例子：
+*
+* pl_customscript_position_tc.js?adid=16534011&panel_pos=large-pd,small-br,small2-l&pd_pos=hide03&pd_motion=0&pd_speed=25
+*
+* adid
+* 广告的id
+*
+* panel_pos
+* 各个panel的定位，每个panel参数用“，”隔开，panel的名与其相应参数用“-”隔开。 
+* 定位参数有如下几个： tl(左上角), tr（右上角），bl(左下角)，br（右下角），t(中上)，b（中下），l(中左)，r（中右），m(正中)，pd（将panel设置为push down）。 
+* 如不给panel添加相应参数，则panel处于默认位置。
+* 例如，“panel_pos=large-pd,small-br”即是名为“large”的panel是push down panel，名为“small”的panel的定位是右下角
+* 
+* pd_pos
+* push down panel的位置，为页面中某节点的id。如该参数被设置并且页面中有该id的节点，则push down panel会被置于该节点前。
+* 否则push down panel会被放置于页面第一个节点前。
+* 
+* pd_motion
+*　设置ｐｕｓｈ　ｄｏｗｎ　ｐａｎｅｌ是否有展开动画。“1”为有否则为没有动画。
+* 
+* pd_speed
+* push down panel展开动画的速度。默认速度为20，速度不大于100。
+*
+* version 0.0.1
+* updated by Jerry. contact me on jhe@dgit.com
+*
+*
+*/
+
+var ebScriptFileName = "pl_customscript_position_tc.js";
+
+//console.log('pl_customscript_position_tc');
+
+var ebScriptQuery=function(a){this.scriptPath=a};ebScriptQuery.prototype={get:function(){var a="";var b=new RegExp(this.scriptPath.replace(".","\\.")+"(\\?.*)?$","i");var c=document.getElementsByTagName("script");var d;for(d=0;d<c.length;d++){var e=c[d];if(e.src&&e.src.match(b)){var f=e.src.match(/\?([^#]*)(#.*)?/);a=!f?"":f[1]}}return a},parse:function(){var a={};var b=this.get();var c=b.split("&");var d;for(d=0;d<c.length;d++){var e=c[d].split("=");var f=e[0],g=e[1];if(!a[f]){a[f]=[]}if(!g){g="true"}else{try{g=decodeURIComponent(g)}catch(h){g=unescape(g)}}var i=a[f];i[i.length]=g}return a},flatten:function(){var a=this.parse();var b;for(b in a){a[b]=a[b][0]}return a},toString:function(){return"ebScriptQuery [path="+this.scriptPath+"]"}};try{var gEbQueries=(new ebScriptQuery(ebScriptFileName)).flatten()}catch(e){}
+/***************************************************************************************/
+
+
+
+MyAd = function (adConfig){
+
+
+if(parent.document !== null){
+	page_document = parent.document;
+}
+
+
+//获取定位参数
+var panel_pos = getPanelPos();
+//console.log(panel_pos);
+
+
+var panels = {};
+var visible_height;
+var browser;
+var browser_version;
+var is_ie = false;
+
+var request_count = 0;
+
+var push_down_container;
+var push_down_closed = false;
+var expanded = false;
+
+var push_down_pos = gEbQueries.pd_pos;
+var push_down_motion = gEbQueries.pd_motion;
+var push_down_speed = gEbQueries.pd_speed;
+
+
+
+var push_down_sub;
+var push_down_width;
+
+//初始化放置push down panel的container
+setPushDownContainer();
+
+
+EBG.callSuperConstructor(MyAd, this, [adConfig]);
+
+
+this.handlingBeforePanelShow = function (e){
+
+
+	is_ie = EBG.adaptor.browser.isIE();
+	browser_version = EBG.adaptor.browser.getVersion();
+	
+	var panel_name = e.eventData.props.panel.name;
+	var panel_id = e.eventData.props.panel.id;
+
+
+	//获取当前打开的panel的信息并加入到panels对象中
+	if(panels[panel_name] == undefined){
+
+		panels[panel_name] = document.getElementById(panel_id);	
+		
+		panels[panel_name]._name = panel_name;
+		panels[panel_name]._width = e.eventData.props.expand.width;
+		panels[panel_name]._height = e.eventData.props.expand.height;
+
+		//判断是否有该panel的定位参数，有则与该panel关联
+		if(panel_pos[panel_name] !== undefined){
+			panels[panel_name]._position = panel_pos[panel_name];
+			setPanelPos();
+		}
+
+	
+	}
+	
+	
+
+}
+
+this.handlingAfterPanelShow = function (e){
+
+	var panel_name = e.eventData.props.panel.name;
+	var panel_id = e.eventData.props.panel.id;
+
+	//如果该panel被设置为push down
+	if(panels[panel_name]._position !== undefined && panels[panel_name]._position == 'pd' && expanded == false){
+
+
+		//把该panel放置于push down container中
+		push_down_container.appendChild(panels[panel_name]);
+		panels[panel_name].style.position = 'static';
+
+		//展开push down container
+		expandingPushDown(panels[panel_name]);	
+
+		
+	}
+
+	//定位panel
+	setPanelPos();
+
+};
+  
+this.handlingAfterPanelClose = function(e){
+
+	var panel_name = e.eventData.props.panel.name;
+
+	//如panel为push down则关闭push down container
+	if(panels[panel_name]._position !== undefined && panels[panel_name]._position == 'pd'){
+		closePushDown();
+	}
+
+	//删除位于panels对象中的该panel属性
+	if(panels[panel_name] !== undefined){
+		delete panels[panel_name];
+	}
+
+
+};
+
+this.handlingAfterDefaultAdShown = function (e){};
+
+this.handlingPanelPositionTop = function(e){
+
+	//重新定位所有panel
+	setPanelPos();
+
+};
+
+this.handlingRichFlash = function(e){}
+	
+if (adConfig.adId.toString() == gEbQueries['adid']){
+	this._subscribeToAdEvent(EBG.Events.EventNames.SHOW_BANNER_RICH_FLASH_CREATIVE, this.handlingRichFlash, EBG.Events.EventTiming.AFTER);
+	this._subscribeToAdEvent(EBG.Events.EventNames.EXPAND, this.handlingAfterPanelShow, EBG.Events.EventTiming.AFTER);
+	this._subscribeToAdEvent(EBG.Events.EventNames.EXPAND, this.handlingBeforePanelShow, EBG.Events.EventTiming.BEFORE);
+	this._subscribeToAdEvent(EBG.Events.EventNames.COLLAPSE, this.handlingAfterPanelClose, EBG.Events.EventTiming.BEFORE);
+	this._subscribeToAdEvent(EBG.Events.EventNames.CREATE_AD, this.handlingAfterDefaultAdShown, EBG.Events.EventTiming.AFTER);
+	this._subscribeToAdEvent(EBG.Events.EventNames.PAGE_RESIZE, this.handlingPanelPositionTop, EBG.Events.EventTiming.AFTER);
+	this._subscribeToAdEvent(EBG.Events.EventNames.PAGE_SCROLL, this.handlingPanelPositionTop, EBG.Events.EventTiming.AFTER);
+	}
+
+
+
+function getPanelPos(){
+
+	if(gEbQueries.panel_pos !== undefined){
+
+		var pos = {};
+		var arr = gEbQueries.panel_pos.split(',');
+
+		for(var i = 0; i < arr.length; i++){
+			var a = arr[i].split('-');
+			pos[a[0]] = a[1];
+		}
+
+		return pos;
+	
+	}
+
+	return false;
+
+}
+
+
+
+
+function setPanelPos(){
+
+
+	//根据浏览器是否为IE6分别进行定位处理
+	if(is_ie && browser_version == 6){
+		setPanelPosIE6();
+	}else{
+		setPanelPosGen();
+	}
+
+}
+
+
+function setPanelPosGen(){
+
+	for(var panel_name in panels){
+	
+		if(panels[panel_name]._position !== undefined){
+
+			if(panels[panel_name]._position == 'pd'){
+			
+				//水平定位push down panel
+				resetPushDownLeft();
+			
+			}else{//定位浮动panel
+			
+				var doc_width = document.body.clientWidth;
+
+				var visible_height = window.innerHeight;
+				
+				if(is_ie){
+					visible_height = document.documentElement.offsetHeight;
+				}
+
+				var panel_width = panels[panel_name]._width;
+				var panel_height = panels[panel_name]._height;
+				var pos = panels[panel_name]._position;
+				//pos = 'tr';
+
+				var pos_top = 0;
+
+				var pos_bottom = visible_height - panel_height;
+
+				if(visible_height < panel_height){
+					pos_bottom = 0;
+				}
+
+				var pos_left = 0;
+				var pos_right = doc_width - panel_width;
+
+				var pos_ver_middle = (visible_height - panel_height) / 2;
+				
+				if(visible_height < panel_height){
+					 pos_ver_middle = 0;
+				}
+				
+				var pos_hor_middle = (doc_width - panel_width) / 2;
+
+				panels[panel_name].style.position = 'fixed';
+
+
+				if(pos == 'tl'){
+					panels[panel_name].style.top = pos_top + 'px';
+					panels[panel_name].style.left = pos_left + 'px';
+				}
+			
+				if(pos == 'tr'){
+					panels[panel_name].style.top = pos_top + 'px';
+					panels[panel_name].style.left = pos_right + 'px';
+				}
+
+				if(pos == 'bl'){
+					panels[panel_name].style.top = pos_bottom + 'px';
+					panels[panel_name].style.left = pos_left + 'px';
+				}
+
+				if(pos == 'br'){
+					panels[panel_name].style.top = pos_bottom + 'px';
+					panels[panel_name].style.left = pos_right + 'px';
+				}
+
+				if(pos == 't'){
+					panels[panel_name].style.top = pos_top + 'px';
+					panels[panel_name].style.left = pos_hor_middle + 'px';
+				}
+
+				if(pos == 'b'){
+					panels[panel_name].style.top = pos_bottom + 'px';
+					panels[panel_name].style.left = pos_hor_middle + 'px';
+				}
+
+				if(pos == 'r'){
+					panels[panel_name].style.top = pos_ver_middle + 'px';
+					panels[panel_name].style.left = pos_right + 'px';
+				}
+
+				if(pos == 'l'){
+					panels[panel_name].style.top = pos_ver_middle + 'px';
+					panels[panel_name].style.left = pos_left + 'px';
+				}
+
+				if(pos == 'm'){
+					panels[panel_name].style.top = pos_ver_middle + 'px';
+					panels[panel_name].style.left = pos_hor_middle + 'px';
+				}
+			
+			}
+
+
+			
+
+		}
+	
+	}
+
+}
+
+
+function setPanelPosIE6(){
+
+	for(var panel_name in panels){
+
+		if(panels[panel_name]._position == 'pd'){
+			panels[panel_name].style.top = 0;
+		}
+	
+		if(panels[panel_name]._position !== undefined){
+
+			if(panels[panel_name]._position == 'pd'){
+			
+				//水平定位push down panel
+				resetPushDownLeft();	
+			
+			}else{//定位浮动panel
+			
+				var doc_width = document.documentElement.clientWidth;
+				var visible_height = document.documentElement.offsetHeight;
+				var scroll_top = document.documentElement.scrollTop;
+				var panel_width = panels[panel_name]._width;
+				var panel_height = panels[panel_name]._height;
+				var pos = panels[panel_name]._position;
+
+				var pos_top = scroll_top;
+
+				var pos_bottom = visible_height - panel_height + scroll_top;
+				
+				if(visible_height < panel_height){
+					pos_bottom = scroll_top;
+				}
+				
+				var pos_left = 0;
+				var pos_right = doc_width - panel_width;
+
+				var pos_ver_middle = (visible_height - panel_height) / 2 + scroll_top;
+
+				if(visible_height < panel_height){
+					 pos_ver_middle = scroll_top;
+				}
+
+				var pos_hor_middle = (doc_width - panel_width) / 2;
+
+
+				panels[panel_name].style.position = 'absolute';
+
+				if(pos == 'tl'){
+					panels[panel_name].style.top = pos_top + 'px';
+					panels[panel_name].style.left = pos_left + 'px';
+				}
+
+				if(pos == 'tr'){
+					panels[panel_name].style.top = pos_top + 'px';
+					panels[panel_name].style.left = pos_right + 'px';
+				}
+
+				if(pos == 'bl'){
+					panels[panel_name].style.top = pos_bottom + 'px';
+					panels[panel_name].style.left = pos_left + 'px';
+				}
+
+				if(pos == 'br'){
+					panels[panel_name].style.top = pos_bottom + 'px';
+					panels[panel_name].style.left = pos_right + 'px';
+				}
+
+				if(pos == 't'){
+					panels[panel_name].style.top = pos_top + 'px';
+					panels[panel_name].style.left = pos_hor_middle + 'px';
+				}
+
+				if(pos == 'b'){
+					panels[panel_name].style.top = pos_bottom + 'px';
+					panels[panel_name].style.left = pos_hor_middle + 'px';
+				}
+
+				if(pos == 'r'){
+					panels[panel_name].style.top = pos_ver_middle + 'px';
+					panels[panel_name].style.left = pos_right + 'px';
+				}
+
+				if(pos == 'l'){
+					panels[panel_name].style.top = pos_ver_middle + 'px';
+					panels[panel_name].style.left = pos_left + 'px';
+				}
+
+				if(pos == 'm'){
+					panels[panel_name].style.top = pos_ver_middle + 'px';
+					panels[panel_name].style.left = pos_hor_middle + 'px';
+				}
+				
+			}
+
+			
+
+		}
+
+	}
+
+}
+
+
+
+function adCall(adsay){
+	
+
+	var re;
+
+	request_count = request_count + 1;
+
+	if(adsay == 'close_large'){
+		if(request_count == 2){
+			closePushDown();
+		}
+	}
+
+	if(push_down_closed){
+		re = 'large_closed';
+		request_count = 0;
+		
+
+	}
+
+	return re;
+
+}
+
+
+//关闭push down container - 将其高度设为0
+function closePushDown(){
+
+	push_down_container.style.height = 0;
+	expanded = false;
+
+}
+
+
+//新建push down container. 
+function setPushDownContainer(){
+
+	push_down_container = document.createElement('div');
+	push_down_container.id = 'eb_pushDown_ad_container'; 
+	push_down_container.style.overflow = 'hidden';
+
+	//container的初始高度为0
+	push_down_container.style.height = 0;
+	push_down_container.style.position = 'relative';
+	
+
+}
+
+
+//设置push down container的位置，把container放置于指定节点前
+function setPushDownPos(){
+
+	var div;
+
+	if(push_down_pos !== undefined){
+
+		//获取参数所指定的节点
+		div = document.getElementById(push_down_pos);
+	
+		//如找不到节点，定位为页面第一个节点
+		if(div == null){
+			div = document.body.firstChild;
+		}
+	
+	}else{//如没有指定节点，定位为页面第一个节点
+		div = document.body.firstChild;
+	}
+
+	//获得指定节点的父节点
+	var par = div.parentNode;
+
+	//把container放置于指定节点前
+	par.insertBefore(push_down_container, div);
+
+}
+
+
+function expandingPushDown(panel){
+
+	//设置push down container定位
+	setPushDownPos();
+
+	//设置push down container与push down panel的宽度一致
+	push_down_container.style.width = panel.clientWidth + 'px';
+
+	//定位push down container的水平定位
+	resetPushDownLeft();
+	
+
+	//设定500微妙后触发container的展开动作以确保panel在展开前已被加载到container中
+	var timer = setTimeout(function(){
+
+
+		if(push_down_motion !== undefined && push_down_motion == '1'){//如参数设置有展开动画
+		
+			animate1(push_down_container, {'height' : panel.clientHeight}, function(){
+				expanded = true;
+			});
+		
+		}else{//没有展开动画
+		
+			push_down_container.style.height = panel.clientHeight + 'px';
+			expanded = true;
+		
+		}
+	
+	}, 500);
+
+}
+
+
+//水平定位push down container，设置其居中于父容器
+function resetPushDownLeft(){
+
+	var par = push_down_container.parentNode;
+	push_down_container.style.marginLeft = (par.clientWidth - push_down_container.clientWidth) / 2 + 'px';
+
+}
+
+
+//push down container展开动画
+//obj为动画对象，dir为动画方式，callback为动画结束后回调函数
+function animate1(obj, dir, callback){
+
+	var speed = 30;
+	var frame_rate = 50;
+	var timer;
+
+	if(gEbQueries.pd_speed !== undefined){
+		var num = parseInt(gEbQueries.pd_speed);
+		if(num <= 100){
+			speed = num;
+		}
+	}
+
+	if(dir.height !== undefined){
+		animateHeight();
+	}
+
+	function animateHeight(){
+	
+		var target = dir.height;
+		var current = parseFloat(obj.style.height);
+		var incre = 1;
+
+		if(target < current){
+			incre = -1;
+		}
+
+		timer = setInterval(animating, frame_rate);	
+
+		function animating(){
+		
+			current = current + speed * incre;
+
+
+			if(incre == -1){
+				if(current < target){
+					current = target;
+					end();
+				}
+			}else{
+				if(current > target){
+					current = target;
+					end();
+				}
+			}
+
+			obj.style.height = current + 'px';
+		
+		}
+	
+	}
+
+
+	function end(){
+	
+		clearInterval(timer);
+
+		if(callback !== undefined){
+			callback();
+		}
+	
+	}
+
+
+}
+
+
+
+};
+
+function myAdHook()
+{
+  var eventSub = new EBG.Events.EventSubscription(EBG.Events.EventNames.CREATE_AD, function (event)
+  {
+    EBG.declareClass(MyAd, event.eventData.currentClass);
+    event.eventData.currentClass = MyAd;
+  });
+  
+  eventSub.timing = EBG.Events.EventTiming.BEFORE;
+  EBG.eventMgr.subscribeToEvent(eventSub);
+  
+}
+
+ebO.extensionHooks.push(myAdHook);
+
+
+
+
