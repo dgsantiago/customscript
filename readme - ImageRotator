@@ -1,0 +1,188 @@
+ImageRotator类 使用说明文档（AS3）
+
+
+1.	实例化对象
+
+var image_rotator:ImageRotator = new ImageRotator([图片路径]);
+
+构造函数内的参数为图片路径，类型为Array。数组中有多少元素则显示多少张图片。例如：
+
+var image_rotator:ImageRotator = new ImageRotator([“a.png”, “b.png”, “c.png”]);
+
+显示三张图片旋转，图片路径分别为“a.png”, “b.png”, “c.png”。
+
+
+2.	把对象添加到舞台
+
+stage.addChild(image_rotator);
+
+已实例化的对象image_rotator的类型为MovieClip，因此可直接添加到舞台或其他影片剪辑中。
+
+
+3.	设置旋转的圆心位置（可选）
+
+image_rotator.setPos([圆心坐标]);
+
+圆心坐标为两个参数，第一个是圆心的x坐标，第二个为圆心的y坐标。类型均为Number。例如：
+
+image_rotator.setPos(200, 100);
+
+即把圆心位置设置为x=200,y=100。
+默认圆心位置为x=230,y=80。
+
+
+4.	设置旋转范围（可选）
+
+image_rotator.setDimension([旋转范围]);
+
+旋转范围为两个参数。第一个为旋转横向最大范围的半径，第二个为旋转纵向最大范围的半径。类型均为Number。例如：
+
+image_rotator.setDimension(200, 80);
+
+即横向最大范围为400，纵向最大范围为160。
+默认横向和纵向最大范围分别为460和160。
+
+
+5.	设置初始旋转方向（顺时针或逆时针）（可选）
+
+image_rotator.setInitDirection([方向])
+
+方向参数为1或-1。类型为int。1为顺时针，-1为逆时针。默认是顺时针旋转。
+
+
+6.	设置旋转速度（可选）
+
+image_rotator. setSpeed([速度])
+
+速度参数是类型为Number的数字。默认速度为1。
+
+
+7.	给每张图片添加属性（可选）
+
+image_rotator.setImageProperty([属性])
+
+可以给每张图片添加任意多的属性。属性参数为Array类型。例如：
+
+image_rotator.setImageProperty(["_name", ["a", "b", "c"]], ["_index", ["1", "2", "3"]]]
+
+如实例该类时已给对象添加了3张图片。则给每张图片添加“_name”和“_index”两个属性。3张图片的“_name”属性分别为"a", "b"和"c"；“_index”属性分别为"1", "2"和"3"。添加属性的值的顺序必须和添加图片的顺序一致。
+
+
+8.	调用点击图片的回调函数（可选）
+
+image_rotator.mcClickedCallback = imageClicked;
+
+function imageClicked(e){
+	
+}
+
+在imageClicked函数内写你的代码。e为该回调函数返回的图片对象，可以通过其获取被点击的图片的相应属性值。例如，之前如已经给图片添加“_name”属性，则被点击图片的_name属性值为e._name。
+
+
+9.	设置是否根据鼠标位置改变旋转方向（可选）
+
+image_rotator.multi_direction = false;
+
+false为不根据，true为根据。默认为true。
+
+
+10.	设置初始是否旋转（可选）
+
+image_rotator.init_motion = false;
+
+false为不旋转，true为旋转。默认true。
+
+
+11.	调用鼠标移上图片的回调函数（可选）
+
+image_rotator.mcMouseOverCallback = imageMouseOver;
+
+function imageMouseOver(e){
+	
+}
+
+在imageMouseOver函数内写你的代码。e为该回调函数返回的图片对象，可以通过其获取被点击的图片的相应属性值。例如，之前如已经给图片添加“_name”属性，则鼠标移上的图片的_name属性值为e._name。
+
+
+12.	调用鼠标移开图片的回调函数（可选）
+
+image_rotator.mcMouseOutCallback = imageMouseOut;
+
+function imageMouseOut(e){
+	
+}
+
+在imageMouseOut函数内写你的代码。e为该回调函数返回的图片对象，可以通过其获取被点击的图片的相应属性值。例如，之前如已经给图片添加“_name”属性，则鼠标移开的图片的_name属性值为e._name。
+
+
+13.	初始化对象
+
+image_rotator.init();
+
+通过调用init函数初始化实例对象。注意初始化应在所有的设置之后。
+
+
+14.	暂停旋转动画
+
+image_rotator.pauseRotation();
+
+
+15.	恢复旋转动画
+
+image_rotator.resumeRotation();
+
+
+
+以下为应用ImageRotator类的完整例子：
+
+//导入类
+import ImageRotator;
+
+//实例化并添加图片
+var image_rotator:ImageRotator = new ImageRotator([“a.png”, “b.png”, “c.png”])
+
+//添加到舞台
+stage.addChild(image_rotator);
+
+//设置旋转圆心位置（可选）
+image_rotator.setPos(200, 100);
+
+//设置旋转范围（可选）
+image_rotator.setDimension(200, 80);
+
+//设置初始旋转方向（可选）
+image_rotator.setInitDirection(-1);
+
+//设置旋转速度（可选）
+image_rotator. setSpeed (2);
+
+//给每张图片添加属性（可选）
+image_rotator.setImageProperty(["_name", ["a", "b", "c"]], ["_index", ["1", "2", "3"]]];
+
+//调用点击图片的回调函数（可选）
+image_rotator.mcClickedCallback = imageClicked;
+
+//调用鼠标移上图片的回调函数（可选）
+image_rotator.mcMouseOverCallback = imageMouseOver;
+
+//调用鼠标移开图片的回调函数（可选）
+image_rotator.mcMouseOutCallback = imageMouseOut;
+
+//初始化
+image_rotator.init();
+
+//实现点击图片事件
+function imageClicked(e){
+	//代码
+}
+
+//实现鼠标移上图片事件
+function imageMouseOver(e){
+	//代码
+}
+
+//实现鼠标移开图片事件
+function imageMouseOut(e){
+	//代码
+}
+
